@@ -167,6 +167,20 @@ confusionMatrix(prediction2, ms_testing$classe)
   
 **Based on the Accuracy and the 95% confidence interval comparison, it is evident that the Random Forest model predicts better than the Decision tree and hence we will use the Random tree model as the final model for our prediction**  
   
+**The estimated out-of-sample error rate for the model is calculated below.**  
+  
+
+```r
+testingPredRate <- sum(prediction2 == ms_testing$classe)/length(prediction2)
+
+# Out of sample Error Estimate
+round((1 - testingPredRate) * 100, 4) 
+```
+
+```
+## [1] 0.4282
+```
+  
 The next check to be done is to validate whether the model performs if the training data is changed.  
 We will do the cross validation method to check the same.
 
@@ -226,7 +240,7 @@ barplot(height=data$Accuracy,
         ylab = "Accuracy in %", col = "blue", las = 3)
 ```
 
-![](PA1_Machine_Learning_Course_files/figure-html/unnamed-chunk-7-1.png)
+![](PA1_Machine_Learning_Course_files/figure-html/unnamed-chunk-8-1.png)
   
 ##Results   
 Comparing the accuracy results of the cross validation for Decision Trees, GBM and Random Forests, it is evident that Random Forests model perform better compared to the other models and hence we chose the same model as our Final Model. The predicted classe for the test set can be found by executing the below code but the results are hidden as publishing the result might violate the Coursera code of conduct.  

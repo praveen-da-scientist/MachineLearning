@@ -101,6 +101,15 @@ confusionMatrix(prediction2, ms_testing$classe)
   
 **Based on the Accuracy and the 95% confidence interval comparison, it is evident that the Random Forest model predicts better than the Decision tree and hence we will use the Random tree model as the final model for our prediction**  
   
+**The estimated out-of-sample error rate for the model is calculated below.**  
+  
+```{r}
+testingPredRate <- sum(prediction2 == ms_testing$classe)/length(prediction2)
+
+# Out of sample Error Estimate
+round((1 - testingPredRate) * 100, 4) 
+```    
+  
 The next check to be done is to validate whether the model performs if the training data is changed.  
 We will do the cross validation method to check the same.
 
