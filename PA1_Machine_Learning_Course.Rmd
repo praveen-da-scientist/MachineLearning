@@ -1,0 +1,179 @@
+---
+title: Predictive Analysis on the quality of Exercise 
+Author: Praveen Nair
+output:
+  html_document:
+    keep_md: yes
+  pdf_document: default
+---
+###Author: Praveen Nair
+##Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.  
+  
+The goal of this project is to do the predictive analysis on the quality of the exercise and this is done using the data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The participants were asked to to perform barbell lifts correctly and incorrectly in 5 different ways. More information about the data is available  [here](http://groupware.les.inf.puc-rio.br/har) - See the section on the Weight Lifting Exercise Dataset  
+  
+Based on the Analysis results the answers for the questions can be summarised as below.  
+
+##Data Processing  
+The training data for this project are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)  
+  
+The test data are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+Before loading the data, let us load the packages needed for this analysis.  
+```{r simulation, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(caret)
+library(e1071)
+library(rpart) 
+library(rpart.plot)
+library(randomForest)
+```
+
+###Loading the Data:  
+The data for this project is available in the Datasets package and can be loaded using the following commands.  
+```{r}
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# Load the Data to Memory after converting "#DIV/0!", " " and "NA" values to NA
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+
+# Remove the columns which contains only NA values and the first 7 columns which contains user name, timestamps
+# and window fields which won't affect the outcome 
+modelset <- training[colnames(training[colSums(is.na(training)) == 0])[-(1:7)]]
+```  
+  
+##Prediction Modeling    
+For the prediction model selection, three models are tested. The models used for this analysis are,  
+* Decision Trees
+* Generalized Boosted Regression and 
+* Random Forests  
+  
+For the above three models, the cross validation and comparison startegy used is as given below.  
+*Step 1:* Partition the cleaned up  modelset in the ratio  75:25 for training and validation. This is necessary to assess the performance of the prediction model and to make adjustments before using the model for predicting the outcomes with the test data.  
+  
+*Step 2:* Create the prediction model using Decision Trees / GBM / Random Forests   
+
+*Step 3:* Split the training set in to 10 folds for crosss validation to check the prediction accuracy   
+  
+*Step 4:* Check the Accuracy of the model for each of the folds and see whether the prediction model is stable and acceptable (This is done for Random Forest Model only).  
+
+The above steps can be found in the code snippet below.  
+```{r}
+# Setting the seed for reproducibility
+set.seed(1234)
+
+# Create the data partition using the ration 75:25
+partition <- createDataPartition(y=modelset$classe, p=0.75, list=FALSE )
+
+# Training set from the Modelset
+ms_training <- modelset[partition,]
+
+# Validation set from the Modelset
+ms_testing <- modelset[-partition,]
+```  
+  
+Let us check the accuracy for Decision Tree Model
+```{r}
+# check the accuracy for decision tree model
+model1 <- rpart(classe ~ ., data=ms_training, method="class")
+
+# Record which guesses are correct
+prediction1 <- predict(model1, newdata = ms_testing, type = "class")
+
+# check the accuracy for decision trees
+confusionMatrix(prediction1, ms_testing$classe)
+```  
+  
+Let us check the accuracy for Random Forest model now
+```{r}
+# check the accuracy for decision tree model
+model2 <- randomForest(classe ~ ., data=ms_training, method="class")
+
+# Record which guesses are correct
+prediction2 <- predict(model2, newdata = ms_testing, type = "class")
+
+# check the accuracy for decision trees
+confusionMatrix(prediction2, ms_testing$classe)
+```  
+  
+**Based on the Accuracy and the 95% confidence interval comparison, it is evident that the Random Forest model predicts better than the Decision tree and hence we will use the Random tree model as the final model for our prediction**  
+  
+The next check to be done is to validate whether the model performs if the training data is changed.  
+We will do the cross validation method to check the same.
+
+```{r eval=FALSE}
+# Defining a numeric vector to hold the prediction accuracy for 5 iterations
+accuracy_vector <- numeric(5)
+
+for (iteration in 1:5) {
+  
+  # Create the data partition using the ration 75:25
+  partition <- createDataPartition(y=modelset$classe, p=0.75, list=FALSE )
+  
+  # Training set from the Modelset
+  ms_training <- modelset[partition,]
+  
+  # Validation set from the Modelset
+  ms_testing <- modelset[-partition,]
+
+  # Splits into 10 folds.
+  folds <- createFolds(y = ms_training$classe, k = 10, list = FALSE)
+  
+  # create a logical vector which is the same size as that of ms_testing which is used for the validation
+  # we'll set the value to True for all the correctly predicted values and will be used to check the accuracy
+  validation_vector <- logical(nrow(ms_testing))
+  for (ifold in 1:10) {
+    
+    # Split each folds in to training and validation sets for cross validation
+    train_subset <- ms_training[folds != ifold, ]
+    
+    # The fold which has the same value as the counter is reserved for validation
+    test_subset  <- ms_training[folds == ifold, ]
+
+    # Step 3: Fit the model - Random Forests is executed below (Decision Trees and GBM code are commented) 
+    # model <- rpart(classe ~ ., data=train_subset, method="class")
+    # model <- train(classe ~ ., data = train_subset, method="gbm", verbose=FALSE)
+    model <- randomForest(classe ~ ., data = train_subset, method="class")
+
+    # Record which guesses are correct
+    predictions <- predict(model, newdata = test_subset)
+    
+    # Set the value of the validation vector to TRUE if the predicted value is the same as the test classe
+    validation_vector[folds == ifold] <- (predictions == test_subset$classe)
+  }
+  # Calculate the mean accuracy
+  accuracy_vector[iteration] <- mean(validation_vector)
+}
+```  
+  
+**A chart showing the prediction accuracy for the 5 iteration done above is shown below**
+```{r echo=FALSE}
+# Cross validation is a very time consuming process. The data from accuracy_vector is copied to 
+# the data frame manually to reduce the time for execution
+accuracy_rf <- c(99.81, 99.79, 99.82, 99.78, 99.76)
+data <- data.frame(cbind(c(1,2,3,4,5), accuracy_rf))
+colnames(data) <- c("Iteration", "Accuracy")
+```
+```{r  fig.height=4}
+barplot(height=data$Accuracy, 
+        names.arg = data$Iteration, 
+        main = "Mean Accuracies of Prediction with the Model Selected",
+        ylab = "Accuracy in %", col = "blue", las = 3)
+```  
+  
+##Results   
+Comparing the accuracy results of the cross validation for Decision Trees, GBM and Random Forests, it is evident that Random Forests model perform better compared to the other models and hence we chose the same model as our Final Model. The predicted classe for the test set can be found by executing the below code but the results are hidden as publishing the result might violate the Coursera code of conduct.  
+  
+```{r eval=FALSE}
+# Remove the columns which contains only NA values and the first 7 columns which contains user name, timestamps
+# and window fields from the prediction set 
+predictionset <- testing[colnames(testing[colSums(is.na(testing)) == 0])[-(1:7)]]
+
+# Record which guesses are correct
+prediction_Final <- predict(model2, newdata = predictionset, type = "class")
+prediction_Final
+```  
+
